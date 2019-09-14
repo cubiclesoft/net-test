@@ -24,8 +24,7 @@
 		"rules" => array(
 			"suppressoutput" => array("arg" => false),
 			"help" => array("arg" => false)
-		),
-		"userinput" => "="
+		)
 	);
 	$args = CLI::ParseCommandLine($options);
 
@@ -56,7 +55,7 @@
 		"client" => "Connect to an echo server"
 	);
 
-	$cmd = CLI::GetLimitedUserInputWithArgs($args, "cmd", "Command", false, "Available commands:", $cmds, true, $suppressoutput);
+	$cmd = CLI::GetLimitedUserInputWithArgs($args, false, "Command", false, "Available commands:", $cmds, true, $suppressoutput);
 
 	function DisplayResult($result)
 	{
@@ -67,6 +66,8 @@
 
 	if ($cmd === "server")
 	{
+		CLI::ReinitArgs($args, array("bind", "port", "ssl", "cert", "key"));
+
 		$bind = CLI::GetUserInputWithArgs($args, "bind", "Bind to IP", "0.0.0.0", "The bind to IP address is usually 0.0.0.0 or 127.0.0.1 for IPv4 and [::0] or [::1] for IPv6.", $suppressoutput);
 		$port = (int)CLI::GetUserInputWithArgs($args, "port", "Port", false, "", $suppressoutput);
 		$ssl = CLI::GetYesNoUserInputWithArgs($args, "ssl", "SSL", "N", "", $suppressoutput);
@@ -134,6 +135,8 @@
 	}
 	else if ($cmd === "client")
 	{
+		CLI::ReinitArgs($args, array("bind", "host", "port", "ssl", "retry", "msg"));
+
 		$bind = CLI::GetUserInputWithArgs($args, "bind", "Bind to IP", "", "Binding to a specific IP controls the interface that packets will be sent out on.  Leave blank for the default interface.", $suppressoutput);
 		$host = CLI::GetUserInputWithArgs($args, "host", "Host", false, "", $suppressoutput);
 		$port = (int)CLI::GetUserInputWithArgs($args, "port", "Port", false, "", $suppressoutput);
