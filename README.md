@@ -9,6 +9,7 @@ Features
 * Simple TCP/IP echo server/client with optional SSL/TLS support.
 * A complete, question/answer enabled command-line interface.  Nothing to compile.
 * GenericServer class.  Very noisy when debug mode is turned on (a good thing in this case).
+* Website connectivity tester.  Useful for monitoring and tracking down extremely difficult/unusual initial connection issues.
 * Also has a liberal open source license.  MIT or LGPL, your choice.
 * Designed for relatively painless integration into your environment.
 * Sits on GitHub for all of that pull request and issue tracker goodness to easily submit changes and ideas respectively.

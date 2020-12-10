@@ -52,7 +52,8 @@
 	// Get the command group.
 	$cmds = array(
 		"server" => "Start an echo server",
-		"client" => "Connect to an echo server"
+		"client" => "Connect to an echo server",
+		"web-tcp" => "Repeatedly retrieve a single URL"
 	);
 
 	$cmd = CLI::GetLimitedUserInputWithArgs($args, false, "Command", false, "Available commands:", $cmds, true, $suppressoutput);
@@ -196,7 +197,7 @@
 			else if ($retry > 1)
 			{
 				$retry--;
-				echo "Connection attempt failed.  Retries left:  " . $rety . "\n";
+				echo "Connection attempt failed.  Retries left:  " . $retry . "\n";
 
 				continue;
 			}
@@ -223,5 +224,87 @@
 		// Close the connection.
 		echo "Closing connection.\n";
 		fclose($fp);
+	}
+	else if ($cmd === "web-tcp")
+	{
+		CLI::ReinitArgs($args, array("bind", "url", "frequency", "rawfile"));
+
+		$bind = CLI::GetUserInputWithArgs($args, "bind", "Bind to IP", "", "Binding to a specific IP controls the interface that packets will be sent out on.  Leave blank for the default interface.", $suppressoutput);
+		$url = CLI::GetUserInputWithArgs($args, "url", "HTTP(S) URL", false, "Ideally should be a URL to a web server you control and the URL only returns a few bytes of data.  GET request only.", $suppressoutput);
+		$freq = (int)CLI::GetUserInputWithArgs($args, "frequency", "Request frequency (seconds)", "1", "", $suppressoutput);
+		if ($freq < 1)  $freq = 1;
+		$rawfile = CLI::GetUserInputWithArgs($args, "rawfile", "Raw CSV file", "", "Where to store output for later analysis.  Useful for tracing difficult connectivity issues.", $suppressoutput);
+
+		if ($rawfile === "")  $fp = false;
+		else
+		{
+			$init = (!file_exists($rawfile));
+			$fp = fopen($rawfile, ($init ? "wb" : "ab"));
+			if ($init)  fputcsv($fp, array("timestamp", "url", "active_reqs", "result", "bytes_sent", "bytes_recv", "total_time", "req_time", "response_time"));
+		}
+
+		require_once $rootpath . "/support/web_browser.php";
+		require_once $rootpath . "/support/multi_async_helper.php";
+
+		$nextts = microtime(true);
+
+		// Use a multi-async helper to maintain request frequency consistency.
+		$pages = array();
+		$helper = new MultiAsyncHelper();
+
+		while (1)
+		{
+			$ts = microtime(true);
+			if ($ts >= $nextts)
+			{
+				$options = array();
+				if ($bind !== "")  $options["source_ip"] = $bind;
+
+				$pages[(int)$ts] = array("ts" => $ts, "web" => new WebBrowser());
+				$pages[(int)$ts]["web"]->ProcessAsync($helper, (int)$ts, NULL, $url, $options);
+
+				$nextts += $freq;
+			}
+
+			$result = $helper->Wait(0);
+			if (!$result["success"])
+			{
+				var_dump($result);
+
+				exit();
+			}
+
+			// Process finished pages.
+			foreach ($result["removed"] as $ts2 => $info)
+			{
+				echo "[" . date("Y-m-d H:i:s", $ts2) . "] ";
+
+				if (!$info["result"]["success"])
+				{
+					echo $info["result"]["error"] . " (" . $info["result"]["errorcode"] . ")\n";
+
+					if ($fp !== false)
+					{
+						fputcsv($fp, array(date("Y-m-d H:i:s", $ts2), $url, count($pages), $info["result"]["error"] . " (" . $info["result"]["errorcode"] . ")", "0", "0", $ts - $pages[$ts2]["ts"], "0", "0"));
+						fflush($fp);
+					}
+				}
+				else
+				{
+					if ($info["result"]["response"]["code"] != 200)  echo $info["result"]["response"]["line"] . "\n";
+					else  echo "OK\n";
+
+					if ($fp !== false)
+					{
+						fputcsv($fp, array(date("Y-m-d H:i:s", $ts2), $url, count($pages), $info["result"]["response"]["line"], $info["result"]["rawsendsize"], $info["result"]["rawrecvsize"], $info["result"]["endts"] - $info["result"]["startts"], $info["result"]["recvstart"] - $info["result"]["sendstart"], $info["result"]["endts"] - $info["result"]["recvstart"]));
+						fflush($fp);
+					}
+				}
+
+				unset($pages[$ts2]);
+			}
+
+			usleep(250000);
+		}
 	}
 ?>
